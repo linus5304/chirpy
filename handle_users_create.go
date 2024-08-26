@@ -2,17 +2,26 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+
+	"github.com/linus5304/chirpy/internal/auth"
 )
 
 type User struct {
-	Id    int    `json:"id"`
-	Email string `json:"email"`
+	Id       int    `json:"id"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func (cfg *apiConfig) handleUsersCreate(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	type response struct {
+		User
 	}
 
 	params := parameters{}
@@ -22,13 +31,22 @@ func (cfg *apiConfig) handleUsersCreate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	user, err := cfg.DB.CreateUser(params.Email)
+	hashedPassword, err := auth.HashPassword(params.Password)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Could't create user")
+		respondWithError(w, http.StatusInternalServerError, "Couldn't hash password")
+		return
 	}
 
-	respondWithJSON(w, http.StatusCreated, User{
-		Id:    user.Id,
-		Email: user.Email,
+	user, err := cfg.DB.CreateUser(params.Email, hashedPassword)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Could't create user: %v", err))
+		return
+	}
+
+	respondWithJSON(w, http.StatusCreated, response{
+		User: User{
+			Id:    user.Id,
+			Email: user.Email,
+		},
 	})
 }
